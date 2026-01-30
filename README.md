@@ -36,6 +36,8 @@ openedx-payment-service/
 Node.js ≥ 18  
 npm  
 Tutor (Open edX Devstack)
+Installed plugin [cusc_edx_config](https://github.com/NekoNeko6996/cusc_edx_api)
+Integrated API and verified connectivity via host ping with plugin cusc_edx_config.
 
 ## Installation
 
@@ -56,6 +58,40 @@ npm i
 ```
 
 ### 2. Backend Configuration
+
+#### Sandbox Accounts & Credentials
+
+This project uses sandbox environments for all supported payment gateways.  
+You must create developer/test accounts for each provider to obtain the required credentials.
+
+VNpay (sandbox)
+
+- Register a sandbox merchant account at:
+  - https://sandbox.vnpayment.vn/devreg/
+- After approval, VNPay will provide:
+  - VNP_TMN_CODE
+  - VNP_HASH_SECRET
+- Sandbox payment endpoint is already preconfigured
+
+MoMo (sandbox)
+
+- Open repo git:
+  - https://github.com/momo-wallet/payment/blob/master/nodejs/CollectionLink.js
+- Get credentials:
+  - MOMO_PARTNER_CODE
+  - MOMO_ACCESS_KEY
+  - MOMO_SECRET_KEY
+
+PayPal (sandbox)
+
+- Create a PayPal developer account at
+  - https://developer.paypal.com/home/
+- Create Sandbox REST API credentials:
+  - PAYPAL_CLIENT_ID
+  - PAYPAL_CLIENT_SECRET
+- PayPal sandbox supports full payment flows without requiring a business entity.
+
+#### Environment Variables
 
 Create .env file
 
@@ -143,10 +179,16 @@ npm start
 http://localhost:3000
 ```
 
-6. Access the checkout page
+6. Access the checkout page via the LMS redirect or a test URL configured in Open edX
 
 ## Sandbox Notes
 
 - PayPal: Full-featured sandbox, requires only test accounts
 - VNPay / MoMo: Sandbox credentials must be provided by the payment provider
 - MoMo Production: Requires a registered business entity
+
+## Intended Audience
+
+- Open edX developers
+- EdTech engineers
+- Students or researchers exploring payment gateway integrations
