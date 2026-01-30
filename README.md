@@ -104,28 +104,26 @@ MOMO_SECRET_KEY=
 cd frontend
 npm run build
 ```
-2. Start Open edX (Tutor)
-  Open a new terminal:
+2. Start Open edX (Tutor), open a new terminal:
 ```bash
 tutor dev start
 ```
-  Ensure the LMS is accessible at:
+3. Ensure the LMS is accessible at:
 ```bash
 http://local.openedx.io:8000
 ```
 
-3. Start the payment backend
-  Open another terminal:
+4. Start the payment backend, open another terminal:
 ```bash
 cd backend
 npm start
 ```
-The backend will be available at:
+5. The backend will be available at:
 ```bash
 http://localhost:3000
 ```
 
-4. Access the checkout page
+6. Access the checkout page
 
 ## Sandbox Notes
 - PayPal: Full-featured sandbox, requires only test accounts
