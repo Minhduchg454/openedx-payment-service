@@ -35,8 +35,8 @@ openedx-payment-service/
 
 Node.js ≥ 18  
 npm  
-Tutor (Open edX Devstack)
-Installed plugin [cusc_edx_config](https://github.com/NekoNeko6996/cusc_edx_api)
+Tutor (Open edX Devstack)  
+Installed plugin [cusc_edx_config](https://github.com/NekoNeko6996/cusc_edx_api)  
 Integrated API and verified connectivity via host ping with plugin cusc_edx_config.
 
 ## Installation
