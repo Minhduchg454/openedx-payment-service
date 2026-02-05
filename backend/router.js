@@ -4,8 +4,15 @@ const lmsApi = require("./server_api/lms_api");
 const paymentVnpay = require("./server_api/payment_vnpay");
 const paymentPaypal = require("./server_api/payment_paypal");
 const paymentMoMo = require("./server_api/payment_momo");
+const helpers = require("./server_api/helpers");
 
 const COURSE_MODE = process.env.COURSE_MODE || "verified";
+const BANK_TRANSFER_INFO = {
+  bankCode: process.env.BANK_TRANSFER_BANK_CODE,
+  bankName: process.env.BANK_TRANSFER_BANK_NAME,
+  accountNumber: process.env.BANK_TRANSFER_ACCOUNT_NUMBER,
+  accountName: process.env.BANK_TRANSFER_ACCOUNT_NAME,
+};
 
 router.get("/", (req, res) => {
   res.send("Node payment API is running.");
@@ -38,12 +45,25 @@ router.get("/api/checkout-data", async (req, res) => {
 });
 
 router.post("/api/orders/create", async (req, res) => {
-  const { courseId, username, amount, currency, nextUrl, paymentMethod } =
-    req.body;
+  const {
+    courseId,
+    username,
+    amount,
+    currency,
+    nextUrl,
+    paymentMethod,
+    courseName,
+  } = req.body;
 
   if (!courseId || !username || !amount) {
     return res.status(400).json({ error: "Thiếu dữ liệu tạo order" });
   }
+  if (!paymentMethod || !paymentMethod.provider) {
+    return res.status(400).json({ error: "Thiếu paymentMethod" });
+  }
+
+  const pendingProviders = ["atm", "bank_transfer"];
+  const isPendingPayment = pendingProviders.includes(paymentMethod.provider);
 
   try {
     const user = await lmsApi.lookupUser(username);
@@ -61,8 +81,38 @@ router.post("/api/orders/create", async (req, res) => {
           provider: paymentMethod.provider,
           label: paymentMethod.label,
         },
+        bank_transfer: {
+          bankCode: BANK_TRANSFER_INFO.bankCode,
+          bankName: BANK_TRANSFER_INFO.bankName,
+          accountNumber: BANK_TRANSFER_INFO.accountNumber,
+          accountName: BANK_TRANSFER_INFO.accountName,
+        },
       },
     });
+
+    //Gui mail khi trang thai la pending
+    try {
+      if (isPendingPayment) {
+        await lmsApi.sendMail({
+          to: [user.email],
+          subject: "Đã ghi nhận đơn hàng – chờ xác nhận chuyển khoản",
+          template: "emails/order_pending.html",
+          context: {
+            name: user.username,
+            order_id: order.id,
+            course_name: courseName,
+            amount: Number(amount).toLocaleString("vi-VN"),
+            currency: currency || "VND",
+            payment_method_label: paymentMethod.label,
+            course_createdAt: order.created_at
+              ? new Date(order.created_at).toLocaleString("vi-VN")
+              : "",
+          },
+        });
+      }
+    } catch (mailErr) {
+      console.error("Lỗi gửi mail:", mailErr.message);
+    }
 
     res.status(201).json(order);
   } catch (err) {
@@ -106,17 +156,17 @@ router.get("/api/order-result/:orderId", async (req, res) => {
 });
 
 router.post("/api/simulate-success", async (req, res) => {
-  const { orderId, nextUrl } = req.body;
+  const { orderId } = req.body;
 
   if (!orderId) {
     return res.status(400).json({ ok: false, error: "Thiếu orderId" });
   }
 
   try {
-    const result = await lmsApi.markOrderPaid(orderId);
-    res.json({ ok: true, redirect: nextUrl, lmsResult: result });
+    await helpers.handleOrderSuccess(orderId);
+    return res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    return res.status(500).json({ ok: false, error: err.message });
   }
 });
 
@@ -145,7 +195,7 @@ router.get("/vnpay_ipn", async (req, res, next) => {
 
     // Nếu thành công
     if (data.vnp_ResponseCode === "00" && data.vnp_TransactionStatus === "00") {
-      // TODO: cập nhật trạng thái đơn hàng trong DB
+      await helpers.handleOrderSuccess(data.vnp_TxnRef);
       return res.json({ RspCode: "00", Message: "Confirm Success" });
     } else {
       return res.json({ RspCode: "01", Message: "Transaction Failed" });
@@ -168,7 +218,7 @@ router.get("/vnpay_return", async (req, res) => {
 
   if (isValid && data.vnp_ResponseCode === "00") {
     try {
-      await lmsApi.markOrderPaid(orderId);
+      await helpers.handleOrderSuccess(orderId);
       status = "success";
     } catch (err) {
       console.error("markOrderPaid failed:", err.message);
@@ -223,7 +273,8 @@ router.get("/paypal_return", async (req, res) => {
   try {
     const capture = await paymentPaypal.paypalClient.client().execute(request);
     const orderId = capture.result.purchase_units[0].reference_id;
-    await lmsApi.markOrderPaid(orderId);
+    await helpers.handleOrderSuccess(orderId);
+
     res.redirect(
       `${process.env.CLIENT_URL}/result?orderId=${orderId}&status=success`,
     );
@@ -279,7 +330,7 @@ router.get("/momo_return", async (req, res) => {
 
   if (resultCode === "0") {
     try {
-      await lmsApi.markOrderPaid(orderId);
+      await helpers.handleOrderSuccess(orderId);
       return res.redirect(
         `${process.env.CLIENT_URL}/result?orderId=${orderId}&status=success`,
       );
@@ -293,6 +344,22 @@ router.get("/momo_return", async (req, res) => {
   return res.redirect(
     `${process.env.CLIENT_URL}/result?orderId=${orderId}&status=fail`,
   );
+});
+
+router.post("/api/mailer/send", async (req, res) => {
+  const { to, subject, template, context } = req.body;
+
+  try {
+    const result = await lmsApi.sendMail({
+      to,
+      subject,
+      template: template || "emails/order_pending.html",
+      context,
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

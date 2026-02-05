@@ -1,11 +1,10 @@
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Header } from "../components";
+import { Header, OrderSummary } from "../components";
 import { fetchOrderResult } from "../apis/payment_api";
 
 export const ResultCheckout = () => {
   const [params] = useSearchParams();
-  const navigate = useNavigate();
 
   const orderId = params.get("orderId");
   const statusParam = params.get("status");
@@ -24,14 +23,28 @@ export const ResultCheckout = () => {
       setLoading(false);
       return;
     }
-
-    // 2. PROCESSING → KHÔNG GỌI BACKEND
+    // 2. PROCESSING → VẪN LẤY THÔNG TIN ORDER
     if (statusParam === "processing") {
-      setState({
-        status: "processing",
-        message: "Đang chờ hoàn tất thanh toán…",
-      });
-      setLoading(false);
+      setLoading(true);
+      fetchOrderResult(orderId)
+        .then((data) => {
+          setState({
+            status: "processing",
+            course: data.course,
+            user: data.user,
+            amount: data.amount,
+            currency: data.currency,
+            paymentMethod: data.paymentMethod,
+            message: "Đang chờ xác nhận chuyển khoản",
+          });
+        })
+        .catch(() => {
+          setState({
+            status: "fail",
+            message: "Không lấy được thông tin đơn hàng",
+          });
+        })
+        .finally(() => setLoading(false));
       return;
     }
 
@@ -156,7 +169,7 @@ export const ResultCheckout = () => {
       <Header showExit={false} />
 
       <div className="flex flex-1 justify-center items-center">
-        {status === "success" ? (
+        {status === "success" && (
           <div className="w-full max-w-lg flex flex-col items-center gap-4 bg-white p-6 rounded-xl shadow">
             <img src="/images/icons-success.svg" className="w-14 h-14" />
             <p className="text-green-500 text-lg font-medium">
@@ -187,12 +200,44 @@ export const ResultCheckout = () => {
               Vào khóa học
             </button>
           </div>
-        ) : (
+        )}
+
+        {status === "fail" && (
           <div className="w-full max-w-md flex flex-col items-center gap-4 bg-white p-6 rounded-xl shadow">
-            <img src="/images/icons-error.svg" className="w-14 h-14" />
+            <img src="/images/pending.svg" className="w-14 h-14" />
             <p className="text-red-500 text-lg">
               {message || "Thanh toán lỗi"}
             </p>
+            <button
+              onClick={goBack}
+              className="px-4 py-2 bg-cusc_blue text-white rounded-lg font-bold"
+            >
+              Quay lại khóa học
+            </button>
+          </div>
+        )}
+
+        {status === "processing" && (
+          <div className="w-full max-w-lg flex flex-col gap-4 bg-white p-6 rounded-xl shadow">
+            <img src="/images/pending.svg" className="w-14 h-14 mx-auto" />
+            <p className="text-yellow-600 text-lg font-medium text-center">
+              Chờ xác nhận chuyển khoản
+            </p>
+            <p className="text-sm text-gray-600 text-center">
+              Hệ thống sẽ kích hoạt khóa học ngay sau khi giao dịch được xác
+              nhận.
+            </p>
+
+            <OrderSummary
+              course={course}
+              user={user}
+              amount={amount}
+              currency={currency}
+              paymentMethod={paymentMethod}
+              paidAt={paidAt}
+              showPaidAt
+            />
+
             <button
               onClick={goBack}
               className="px-4 py-2 bg-cusc_blue text-white rounded-lg font-bold"

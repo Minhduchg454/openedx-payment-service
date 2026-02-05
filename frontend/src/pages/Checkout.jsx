@@ -8,8 +8,16 @@ import {
   apiCreatePaypalPayment,
   createOrder,
 } from "../apis/payment_api";
-import { Header, SelectableCardList } from "../components";
+import {
+  Header,
+  SelectableCardList,
+  BankTransferQr,
+  Loading,
+} from "../components";
 import { path } from "../utils/path";
+import { useDispatch } from "react-redux";
+import { showModal, hideModal } from "../store/app/appSlice";
+
 // test moi truong
 // http://localhost:5173/checkout?course_id=course-v1%3AHoiDanIT%2BY0001%2B2025_T2&user=minhduchg454&next=http%3A%2F%2Flocal.openedx.io%3A8000%2Fcourses%2Fcourse-v1%3AHoiDanIT%2BY0001%2B2025_T2%2Fabout
 
@@ -38,6 +46,7 @@ import { path } from "../utils/path";
  */
 
 export function Checkout() {
+  const dispatch = useDispatch();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -53,11 +62,6 @@ export function Checkout() {
       details: [
         { id: "vnpay", label: "VNPay", icon: "/images/VNPay-active.png" },
         { id: "momo", label: "MoMo", icon: "/images/MoMo-active.png" },
-        {
-          id: "shoppepay",
-          label: "ShoppePay",
-          icon: "/images/shopee_pay_active.png",
-        },
       ],
     },
 
@@ -140,11 +144,13 @@ export function Checkout() {
 
     try {
       // 1. TẠO ORDER
+      dispatch(showModal(<Loading />));
       const order = await createOrder({
         courseId: course.course_id,
         username,
         amount: pricing.price,
         currency: pricing.currency,
+        courseName: course.display_name,
         paymentMethod: {
           channel: selectedMethod,
           provider: paymentDetail,
@@ -166,6 +172,8 @@ export function Checkout() {
             amount: pricing.price,
             bankCode: "NCB",
           });
+
+          dispatch(hideModal());
           window.location.href = pay.paymentUrl;
           return;
         }
@@ -176,6 +184,8 @@ export function Checkout() {
             amount: pricing.price,
             currency: pricing.currency,
           });
+
+          dispatch(hideModal());
           window.location.href = approveUrl;
           return;
         }
@@ -185,14 +195,48 @@ export function Checkout() {
             orderId: order.id,
             amount: pricing.price,
           });
+
+          dispatch(hideModal());
           window.location.href = redirectUrl;
           return;
         }
 
-        case "shoppepay":
-        case "visa":
         case "atm": {
+          dispatch(hideModal());
+          const bank = order.extra_data?.bank_transfer;
+          if (!bank) {
+            throw new Error("Không có thông tin chuyển khoản");
+          }
+
+          dispatch(
+            showModal(
+              <BankTransferQr
+                bankCode={bank.bankCode}
+                bankName={bank.bankName}
+                accountNumber={bank.accountNumber}
+                accountName={bank.accountName}
+                amount={pricing.price}
+                orderId={`${username.toUpperCase()} HD${order.id}`}
+                onConfirm={() => {
+                  dispatch(hideModal());
+                  navigate(
+                    `${path.result}?orderId=${order.id}&status=processing`,
+                    { replace: true },
+                  );
+                }}
+                onCancel={() => {
+                  setPaymentLocked(false);
+                  dispatch(hideModal());
+                }}
+              />,
+            ),
+          );
+          return;
+        }
+
+        case "visa": {
           await simulateSuccess(order.id);
+          dispatch(hideModal());
           navigate(`${path.result}?orderId=${order.id}&status=success`, {
             replace: true,
           });

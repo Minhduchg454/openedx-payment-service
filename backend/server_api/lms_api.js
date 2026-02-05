@@ -95,6 +95,38 @@ async function markOrderPaid(orderId) {
   return res.data;
 }
 
+async function sendMail({ to, subject, template, context = {} }) {
+  if (!to || !Array.isArray(to) || to.length === 0) {
+    throw new Error(
+      "Danh sách người nhận (to) phải là một mảng và không được trống",
+    );
+  }
+  if (!subject || !template) {
+    throw new Error("Thiếu tiêu đề (subject) hoặc template email");
+  }
+
+  const url = `${LMS_BASE}/api/cusc-edx-api/mailer/send/`;
+
+  const body = {
+    to: to,
+    subject: subject,
+    template: template,
+    context: context,
+  };
+
+  log("CALL LMS mailer.send:", url, "to:", to);
+
+  try {
+    const res = await axios.post(url, body, {
+      headers: lmsHeaders(),
+    });
+    return res.data;
+  } catch (error) {
+    log("ERROR calling mailer.send:", error.response?.data || error.message);
+    throw error;
+  }
+}
+
 // Export các hàm
 module.exports = {
   lookupUser,
@@ -103,5 +135,6 @@ module.exports = {
   createOrderInLms,
   markOrderPaid,
   fetchOrderDetail,
+  sendMail,
   LMS_BASE,
 };
